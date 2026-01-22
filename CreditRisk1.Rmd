@@ -1,0 +1,229 @@
+---
+title: "CreditCardDefault"
+output:
+  html_document: default
+  pdf_document: default
+date: "2025-10-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# **Credit Risk Model**
+
+## Data Summary/Schema
+
+This model projects the potential for a default payment month based on several demographic factors and payment history. The goal is to ultimately identify trends that can help identify high risk factors in customers earlier. The dataset used is *Default of Credit Card Clients Dataset* on Kaggle. Upon receiving the dataset, I went through and cleaned it to remove any missing or null values and found that there were none of either. I then starting to analyze the data and what types of variables we have:
+
+-   **ID**: ID of each client
+
+-   **LIMIT_BAL**: Amount of given credit in NT dollars (includes individual and family/supplementary credit
+
+-   **SEX**: Gender (1=male, 2=female)
+
+-   **EDUCATION**: (1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown)
+
+-   **MARRIAGE**: Marital status (0=other/unidentified, 1=married, 2=single, 3=divorce)
+
+-   **AGE**: Age in years
+
+Scale for repayment status:
+
+-   **-2: No consumption;**
+
+-   **-1: Paid in full;**
+
+-   **0: The use of revolving credit;**
+
+-   **1 = payment delay for one month;**
+
+-   **2 = payment delay for two months; . . .;**
+
+-   **8 = payment delay for eight months;** **9 = payment delay for nine months and above.**
+
+-   **PAY_0**: Repayment status in September, 2005
+
+-   **PAY_2**: Repayment status in August, 2005 (scale same as above)
+
+-   **PAY_3**: Repayment status in July, 2005 (scale same as above)
+
+-   **PAY_4**: Repayment status in June, 2005 (scale same as above)
+
+-   **PAY_5**: Repayment status in May, 2005 (scale same as above)
+
+-   **PAY_6**: Repayment status in April, 2005 (scale same as above)
+
+-   **BILL_AMT1**: Amount of bill statement in September, 2005 (NT dollar)
+
+-   **BILL_AMT2**: Amount of bill statement in August, 2005 (NT dollar)
+
+-   **BILL_AMT3**: Amount of bill statement in July, 2005 (NT dollar)
+
+-   **BILL_AMT4**: Amount of bill statement in June, 2005 (NT dollar)
+
+-   **BILL_AMT5**: Amount of bill statement in May, 2005 (NT dollar)
+
+-   **BILL_AMT6**: Amount of bill statement in April, 2005 (NT dollar)
+
+-   **PAY_AMT1**: Amount of previous payment in September, 2005 (NT dollar)
+
+-   **PAY_AMT2**: Amount of previous payment in August, 2005 (NT dollar)
+
+-   **PAY_AMT3**: Amount of previous payment in July, 2005 (NT dollar)
+
+-   **PAY_AMT4**: Amount of previous payment in June, 2005 (NT dollar)
+
+-   **PAY_AMT5**: Amount of previous payment in May, 2005 (NT dollar)
+
+-   **PAY_AMT6**: Amount of previous payment in April, 2005 (NT dollar)
+
+-   **default.payment.next.month**: Default payment (1=yes, 0=no)
+
+```{r CCD, echo=FALSE}
+library(readr)
+UCI_Credit_Card <- read_csv("Downloads/UCI_Credit_Card.csv")
+CCD=UCI_Credit_Card
+attach(CCD)
+summary(CCD)
+```
+
+## Cleaning/Transformation
+
+Of the 25 variables in the data set, I wanted to find the ones that could potentially affect credit risk the most within the model. These will be the best predictors of default payment. To start, I created a variable *def* to indicate that the *default.payment.next.month* variable had a value of 1 and is True. Then I made sure that there weren't any overly skewed variables. Below are all of the transformations I made:
+
+-   Amount of credit given(LIMIT_BAL)
+
+```{r LIMTransformations, echo=FALSE}
+def = default.payment.next.month == 1
+par(mfrow =c(1,2))
+ hist(LIMIT_BAL)
+ LogLim = log(LIMIT_BAL)
+ hist(LogLim)
+```
+
+-   Age(AGE)
+
+    ```{r AGETransformations, echo=FALSE}
+    par(mfrow = c(1,2))
+    hist(AGE)
+    LogAge = log(AGE)
+    hist(LogAge)
+    ```
+
+After performing these transformations, I created my first model using all the variables:
+
+```{r Original Model, echo=FALSE}
+m1=glm(def ~ LogLim + LogAge + factor(SEX) + factor(EDUCATION) + factor(MARRIAGE) + factor(PAY_0) + factor(PAY_2) + factor(PAY_3) + factor(PAY_4) + factor(PAY_5) + factor(PAY_6) + PAY_AMT1 + PAY_AMT2 + PAY_AMT3 + PAY_AMT4 + PAY_AMT5 + PAY_AMT6 + BILL_AMT1 + BILL_AMT2 + BILL_AMT3 + BILL_AMT4 + BILL_AMT5 + BILL_AMT6, family = binomial(link = logit))
+summary(m1)
+
+```
+
+Next, I used this original output to find and remove any outliers/high leverage points that could be influencing our results:
+
+```{r}
+CCD[which(abs(rstandard(m1))>2.0),]
+
+#Identifying high leverage points:
+#k=82 x terms
+#Cutoff for high leverage:
+#3(k+1)/n = 3(83)/30000= 0.0083
+#0.0083 is our cutoff point
+  
+#Finding high leverage points:
+leverages = hatvalues(m1)
+CCD[which(leverages>0.0083),]
+
+#Finding points that exceed Cook's Distance:
+#Cutoff is F-Critical Value:
+#df1 = k + 1 = 83
+#df2 = n-(k+1) = 30,000 -(83)=29,917
+qf(.95, 83, 29917)
+
+#Our cutoff for Cook's Distance is 1.268793
+CCD[which(cooks.distance(m1)>1.268793),]
+
+#These are the points that exceed Cook's Distance
+```
+
+After identifying all these points, I then removed them and created a subset *CCD2* of our data that meets our criteria:
+
+```{r}
+#Removing all outliers and high leverage points:
+rsta = rstandard(m1)
+CCD1 = subset(CCD,leverages>0.0083&rsta<2&rsta>-2&cooks.distance(m1)<1.268793)
+CCD2 = na.omit(CCD1, header = T)
+attach(CCD2)
+```
+
+Then, I recreated our original logistic regression model using the new subset:
+
+```{r}
+#Original Model, cleaned dataset
+def= default.payment.next.month==1
+LogAge=log(AGE)
+LogLim=log(LIMIT_BAL)
+m1=glm(def ~ LogLim + LogAge + factor(SEX) + factor(EDUCATION) + factor(MARRIAGE) + factor(PAY_0) + factor(PAY_2) + factor(PAY_3) + factor(PAY_4) + factor(PAY_5) + factor(PAY_6) + PAY_AMT1 + PAY_AMT2 + PAY_AMT3 + PAY_AMT4 + PAY_AMT5 + PAY_AMT6 + BILL_AMT1 + BILL_AMT2 + BILL_AMT3 + BILL_AMT4 + BILL_AMT5 + BILL_AMT6, family = binomial(link = logit))
+summary(m1)
+```
+
+## Model Adjustments
+
+From here, I started to zero in on what the best predictors of default payment were. I used backwards regression to eliminate variables until they were all significant(using a 5% level of significance):
+
+```{r Backwards Regression, echo=FALSE}
+m2 = step(m1, direction = "backward")
+```
+
+While the automated backwards regression was able to remove a few variables that were not significant, we still had a few left that were considerably high p-values so I continued the regression manually to be sure that the variables as a whole were still significant:
+
+-   The worst performing variable in m2 was the -1 level of the *PAY_2* variable with a p-value of 0.977546. Since it was part of a larger category, I conducted a partial F-Test to determine if the category as a whole was significant.
+
+```{r}
+#Reduced Model:
+m2r = glm(formula = def ~ LogLim + factor(EDUCATION) + factor(MARRIAGE) + 
+    factor(PAY_0) + PAY_AMT1 + PAY_AMT2 + PAY_AMT4 + 
+    PAY_AMT5 + PAY_AMT6 + BILL_AMT3 + BILL_AMT4 + BILL_AMT6, 
+    family = binomial(link = logit))
+anova(m2r,m2, test = "Chisq")
+```
+
+Since the Chi-Square P-value is less than our alpha of .05, the PAY_2 value is a significant predictor of default payment and we will leave it in the model. Next, I did the *EDUCATION* and *PAY_0* variables to ensure they were each significant as a whole:
+
+```{r}
+anova(m2r, m2)
+```
+
+```{r}
+anova(m2r, m2)
+```
+
+##  Analysis
+
+Since these were significant as well, I decided to continue with *m2* as our model and begin to start asking some questions about potential credit risk. The most significant predictors of a default payment in our model are:
+
+-   Credit limit(log-transformed)
+
+-   Marital Status
+
+-   Payment amount(particularly *PAY_AMT4*, the payment made in June 2005)
+
+Based on the slopes of these particular variables, we can start to draw some relative conclusions:
+
+-   A married person has a higher likelihood of defaulting than a single person(relative to the baseline reference category), and a divorced person has a higher relative likelihood than either category. **This illustrates the potential for divorced individuals to be a high risk category for default, especially since marital status is such a significant predictor.** To be more detailed, a married person has an average increase of 3.914 in the log likelihood of default over a person in the 0 or 'undefined' category. A single person only has an increase of 3.537, and a divorced individual has a sharper increase of 4.075(keeping all other variables constant).
+
+-   **For every dollar increase in credit limit, there is an average decrease of 3.685 in the log likelihood of a default payment**. This conclusion is sound because of the general practice of higher credit limits being given only to those with a positive repayment history. That is to say, the higher the credit limit, the lower the relative likelihood of default.
+
+-   The payment amount variable is also fairly straightforward in its prediction, as **higher payment amounts in each month predicting decreases in the log likelihood of default**. This contrasts the *BILL_AMT* variable, which predicts **those with higher bill amounts are relatively more likely to default**.
+
+    ## Conclusion
+
+    In summary, we were able to highlight 3 primary at-risk groups within the population:
+
+-   **Divorced individuals**
+
+-   **Those ineligible to receive higher credit limits at any given time**
+
+-   **Those making minimum or low monthly payments, particularly multiple months in a row**
+
+These indicators will help serve as benchmarks to be able to identify the risk of default in customers on a more regular basis, and help to mitigate those risks before they develop into unmanageable situations.
