@@ -1,7 +1,7 @@
 # Credit Risk Analysis
 
 ## Overview
-This project analyzes credit risk using the *Default of Credit Card CLients* dataset on Kaggle. The goal is to identify key risk factors associated with loan default and assess model performance.
+This project analyzes credit risk using the *Default of Credit Card Clients* dataset on Kaggle. The goal is to identify key risk factors associated with loan default and assess model performance.
 
 ## Tools
 - R
@@ -21,5 +21,7 @@ Key risk factors identified were:
 -   Payment amount(particularly *PAY_AMT4*, the payment made in June 2005)
 
 ## Files
-- CreditRisk1.Rmd – analysis code
-- CreditRisk1.html – rendered report
+- Analysis Code - CreditRisk1.Rmd 
+- [View Report](CreditRisk1.html)
+
+
